@@ -1,0 +1,23 @@
+# Ignore build directory created by cx_Freeze
+build/
+
+# Ignore dist directory (if bdist_msi were used)
+dist/
+
+# Ignore Python bytecode files
+*.pyc
+__pycache__/
+
+# Ignore virtual environment directories
+venv/
+.venv/
+
+# Ignore editor/IDE specific files
+.vscode/
+.idea/
+
+# Ignore macOS specific files
+.DS_Store
+
+# Ignore thumbnail cache
+.thumbnails/ 
