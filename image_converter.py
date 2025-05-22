@@ -46,6 +46,7 @@ class ImageConverterApp(TkinterDnD.Tk): # Inherit from TkinterDnD.Tk for DND
         # --- UI Elements ---
         self._create_widgets()
         self._configure_drag_and_drop()
+        self._update_output_format_dropdown() # Initial call after widgets are created
 
     def _create_widgets(self):
         # Main frame
@@ -125,7 +126,8 @@ class ImageConverterApp(TkinterDnD.Tk): # Inherit from TkinterDnD.Tk for DND
             state='readonly', # Prevent typing custom values
             width=10
         )
-        format_combo.pack(side=tk.LEFT)
+        self.format_combo = format_combo # Store as instance variable
+        self.format_combo.pack(side=tk.LEFT)
 
         # 4. Convert Button & Status
         action_frame = ttk.Frame(main_frame, padding="5")
@@ -160,42 +162,56 @@ class ImageConverterApp(TkinterDnD.Tk): # Inherit from TkinterDnD.Tk for DND
             # Normalize path (optional, but can help consistency)
             f_norm = os.path.normpath(f)
             if os.path.isfile(f_norm): # Check if it's actually a file
-                # Basic check for image file extensions
-                # ADDED '.heic', '.heif' to the list
-                if f_norm.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp', '.ico', '.heic', '.heif')):
-                     if f_norm not in self.input_files: # Avoid duplicates
+                try:
+                    # Attempt to open the image to check if it's a valid image format
+                    with Image.open(f_norm) as img:
+                        img.load() # Actually load image data to catch more errors
+
+                    # If successful, and not a duplicate, add to new_files
+                    if f_norm not in self.input_files:
                         new_files.append(f_norm)
-                     else:
-                         skipped_duplicates += 1
-                         print(f"Skipping duplicate file: {os.path.basename(f_norm)}")
-                else:
-                     skipped_non_image += 1
-                     print(f"Skipping non-image or unsupported file type: {os.path.basename(f_norm)}")
+                    else:
+                        skipped_duplicates += 1
+                        print(f"Skipping duplicate file: {os.path.basename(f_norm)}")
+
+                except UnidentifiedImageError:
+                    skipped_non_image += 1
+                    print(f"Skipping unsupported image file: {os.path.basename(f_norm)}")
+                except FileNotFoundError: # Should ideally be caught by os.path.isfile, but good to have
+                    skipped_other += 1
+                    print(f"Skipping (file not found during open): {f_norm}")
+                except Exception as e: # Catch other potential PIL errors
+                    skipped_other += 1
+                    print(f"Skipping file due to other error during open ({type(e).__name__}): {os.path.basename(f_norm)}")
             else:
-                skipped_other += 1
-                print(f"Skipping item (not a file): {f_norm}")
+                skipped_other += 1 # This handles directories or other non-file items
+                print(f"Skipping item (not a file or not found): {f_norm}")
 
         if new_files:
             self.input_files.extend(new_files)
-            status_msg = f"Added {len(new_files)} file(s)."
+            status_msg = f"Added {len(new_files)} image(s)." # Changed "file(s)" to "image(s)"
             if skipped_duplicates > 0:
                  status_msg += f" Skipped {skipped_duplicates} duplicate(s)."
             if skipped_non_image > 0:
-                 status_msg += f" Skipped {skipped_non_image} non-image(s)."
+                 status_msg += f" Skipped {skipped_non_image} unsupported format(s)." # Changed message
             if skipped_other > 0:
                 status_msg += f" Skipped {skipped_other} other item(s)."
             status_msg += f" Total: {len(self.input_files)}"
             self.status_label.config(text=status_msg)
             # Update thumbnails *after* adding files
             self._update_thumbnails()
+            self._update_output_format_dropdown() # Update dropdown based on new file list
             self._update_convert_button_state()
         else:
             # Provide feedback even if no *new* files were added
-            status_msg = "No new valid image files found in drop."
+            # Even if no new files, the list might have changed (e.g. only duplicates dropped)
+            # so an update to the dropdown might still be relevant if list went from 1 to 0.
+            self._update_output_format_dropdown() # Update dropdown
+            status_msg = "No new valid images found in drop." # Changed message
             if skipped_duplicates > 0:
                  status_msg += f" {skipped_duplicates} duplicate(s)."
             if skipped_non_image > 0:
-                 status_msg += f" {skipped_non_image} non-image(s)."
+                 status_msg += f" {skipped_non_image} unsupported format(s)." # Changed message
             if skipped_other > 0:
                  status_msg += f" {skipped_other} other item(s)."
             self.status_label.config(text=status_msg)
@@ -211,8 +227,45 @@ class ImageConverterApp(TkinterDnD.Tk): # Inherit from TkinterDnD.Tk for DND
         if confirmed:
             self.input_files = []
             self._update_thumbnails() # This clears the display
+            self._update_output_format_dropdown() # Update dropdown as file list is now empty
             self.status_label.config(text="List cleared. Drop new images.")
             self._update_convert_button_state()
+
+    def _update_output_format_dropdown(self):
+        """
+        Updates the output format Combobox based on the number and type of input files.
+        """
+        current_selection = self.output_format.get()
+        
+        if len(self.input_files) == 1:
+            file_path = self.input_files[0]
+            compatible_formats = []
+            try:
+                with Image.open(file_path) as img:
+                    img.load()  # Ensure image data is loaded
+                    compatible_formats = self._get_compatible_formats(img)
+            except Exception as e:
+                print(f"Error opening image {file_path} for format compatibility check: {e}")
+                # Fallback to all supported formats if image can't be opened/read for mode
+                compatible_formats = list(SUPPORTED_OUTPUT_FORMATS)
+
+            if not compatible_formats: # If _get_compatible_formats returned empty (should not happen with current logic but good check)
+                display_formats = list(SUPPORTED_OUTPUT_FORMATS)
+            else:
+                display_formats = compatible_formats
+            
+            self.format_combo['values'] = display_formats
+            
+            if current_selection not in display_formats or not current_selection:
+                if display_formats:
+                    self.output_format.set(display_formats[0])
+                elif SUPPORTED_OUTPUT_FORMATS: # Should always be true
+                     self.output_format.set(SUPPORTED_OUTPUT_FORMATS[0]) # Fallback if display_formats is somehow empty
+        else: # Zero or multiple files
+            self.format_combo['values'] = SUPPORTED_OUTPUT_FORMATS
+            if current_selection not in SUPPORTED_OUTPUT_FORMATS or not current_selection:
+                if SUPPORTED_OUTPUT_FORMATS: # Should always be true
+                    self.output_format.set(SUPPORTED_OUTPUT_FORMATS[0])
 
 
     def _update_thumbnails(self):
@@ -328,6 +381,55 @@ class ImageConverterApp(TkinterDnD.Tk): # Inherit from TkinterDnD.Tk for DND
 
         self.convert_button.config(state=state)
 
+    def _get_compatible_formats(self, image_obj):
+        """
+        Determines which of the SUPPORTED_OUTPUT_FORMATS are compatible
+        with the mode of the given PIL Image object.
+        """
+        if not image_obj:
+            return []
+
+        compatible_formats = []
+        mode = image_obj.mode
+
+        # Ensure SUPPORTED_OUTPUT_FORMATS is accessible
+        # (it's a global constant in this file)
+        for fmt in SUPPORTED_OUTPUT_FORMATS:
+            fmt_upper = fmt.upper() # Work with uppercase for consistency
+
+            if fmt_upper == "PNG":
+                # PNG supports a wide range of modes, including those with alpha.
+                compatible_formats.append(fmt)
+            elif fmt_upper == "WEBP":
+                # WebP supports many modes, including lossy/lossless and alpha.
+                compatible_formats.append(fmt)
+            elif fmt_upper == "TIFF":
+                # TIFF is very versatile and supports most modes.
+                compatible_formats.append(fmt)
+            elif fmt_upper == "JPEG":
+                # App flattens 'RGBA', 'LA', 'PA' to 'RGB'.
+                # JPEG natively supports 'L', 'RGB', 'CMYK'.
+                if mode in ('L', 'RGB', 'RGBA', 'LA', 'PA', 'CMYK'):
+                    compatible_formats.append(fmt)
+                # Grayscale 'P' images can often be saved as JPEG (Pillow handles conversion)
+                elif mode == 'P' and image_obj.palette and image_obj.palette.mode == 'L':
+                    compatible_formats.append(fmt)
+                # RGB 'P' images can often be saved as JPEG
+                elif mode == 'P' and image_obj.palette and image_obj.palette.mode == 'RGB':
+                    compatible_formats.append(fmt)
+
+            elif fmt_upper == "BMP":
+                # BMP primarily supports 'L', 'RGB'.
+                # App flattens 'RGBA', 'LA', 'PA' to 'RGB'.
+                # Pillow converts 'P' to 'RGB' for BMP.
+                if mode in ('L', 'RGB', 'RGBA', 'LA', 'PA', 'P'):
+                    compatible_formats.append(fmt)
+            elif fmt_upper == "GIF":
+                # GIF works best with 'P' mode. Pillow handles conversion from other modes.
+                # All modes can generally be converted to GIF, though quality/color loss can occur.
+                compatible_formats.append(fmt)
+
+        return list(dict.fromkeys(compatible_formats)) # Remove duplicates
 
     def _on_mousewheel(self, event):
         """Handle mouse wheel scrolling for the canvas."""
@@ -604,9 +706,35 @@ class ImageConverterApp(TkinterDnD.Tk): # Inherit from TkinterDnD.Tk for DND
             except (FileNotFoundError, IOError, ValueError, OSError, MemoryError, Exception) as e:
                 error_count += 1
                 err_type = type(e).__name__
-                print(f"Error converting {filename}: ({err_type}) {e}")
-                # Update status bar briefly using lambda
-                self.after(0, lambda et=err_type, fn=filename: self.status_label.config(text=f"Error ({et}) on {fn[:25]}{'...'}"))
+                current_image_mode = 'unknown'
+                if 'img' in locals() and hasattr(img, 'mode'):
+                    current_image_mode = img.mode
+
+                # Enhanced console print
+                print(f"Error converting {filename} to {output_fmt} (mode: {current_image_mode}): ({err_type}) {e}")
+
+                # Enhanced user message for status label
+                user_message = f"Error saving {filename} as {output_fmt}: {err_type}."
+                # More specific advice for common save issues
+                if isinstance(e, (ValueError, OSError, MemoryError)): # MemoryError included as it can relate to format/size
+                    user_message = (
+                        f"Failed to save {filename} (mode: {current_image_mode}) as {output_fmt}. "
+                        f"Try a more compatible format like PNG, WEBP, or TIFF, or check for sufficient disk space/memory."
+                    )
+                
+                # Truncate filename for display in status bar to avoid overly long messages
+                display_filename = (filename[:25] + '...') if len(filename) > 25 else filename
+                # Update status bar briefly using lambda, ensuring variables are captured correctly
+                # Rebuild the user_message for the lambda to ensure it's concise for the status bar
+                # if the detailed one is too long.
+                # For this case, let's try to keep the specific advice if possible,
+                # the status bar will truncate if needed.
+                
+                # If the error is specifically about saving, the user_message is already tailored.
+                # Let's ensure the lambda captures the current user_message.
+                self.after(0, lambda um=user_message, dfn=display_filename: self.status_label.config(
+                    text=um # Use the more detailed message directly
+                ))
 
 
         # Update UI after finishing (using self.after to run in main thread)
