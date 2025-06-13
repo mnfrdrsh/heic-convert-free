@@ -4,7 +4,7 @@ from cx_Freeze import setup, Executable
 
 # Dependencies - Add more specific package includes for tkinterdnd2
 build_exe_options = {
-    "packages": ["tkinter", "PIL", "pillow_heif", "tkinterdnd2"],
+    "packages": ["tkinter", "PIL", "pillow_heif", "tkinterdnd2", "app"],
     "includes": ["tkinter", "tkinter.ttk", "PIL", "pillow_heif", "tkinterdnd2"],
     "include_files": ["app_icon.ico"],  # Include the icon file
     "excludes": []
