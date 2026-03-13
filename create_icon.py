@@ -1,7 +1,9 @@
+from pathlib import Path
+
 from PIL import Image, ImageDraw
 
 
-def create_app_icon():
+def create_app_icon(output_dir: str | Path | None = None, output_name: str = "app_icon"):
     # Create a simple image for the icon
     icon_size = (256, 256)
     background_color = (60, 141, 188)  # Blue background
@@ -40,17 +42,22 @@ def create_app_icon():
         fill=(255, 255, 255),
     )
 
+    target_dir = Path(output_dir) if output_dir else Path(__file__).resolve().parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    png_path = target_dir / f"{output_name}.png"
+    ico_path = target_dir / f"{output_name}.ico"
+
     # Save PNG version of the icon
-    icon_image.save("HEIC_app_icon.png")
+    icon_image.save(png_path)
 
     # Save as ICO file for Windows
     # Resize to multiple icon resolutions required on Windows
     sizes = [(s, s) for s in (16, 32, 48, 64, 128, 256)]
 
     # Save as ICO (Windows icon format)
-    icon_image.save("HEIC_app_icon.ico", format="ICO", sizes=sizes)
+    icon_image.save(ico_path, format="ICO", sizes=sizes)
 
-    print("Icon files created successfully.")
+    print(f"Icon files created successfully: {png_path.name}, {ico_path.name}")
 
 
 if __name__ == "__main__":

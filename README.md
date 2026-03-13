@@ -6,13 +6,14 @@ A Windows application that converts images, including HEIC/HEIF formats, to comm
 
 - Drag and drop interface for easy file selection
 - Supports HEIC/HEIF conversion to common formats (including HEIC/HEIF)
+- Automatically avoids overwriting existing output files by appending a number
 - Creates a desktop shortcut for easy access
 - Simple and intuitive user interface
 
 ## Requirements
 
-- Python 3.7 or higher (64-bit recommended for Windows builds)
-- Required Python packages (listed in `requirements.txt` - *Note: Will create requirements.txt later if needed*)
+- Python 3.10 or higher (64-bit recommended for Windows builds)
+- Required Python packages (listed in `requirements.txt`)
   - `Pillow` (for image handling)
   - `pillow-heif` (for HEIC/HEIF support)
   - `tkinterdnd2` (for drag and drop functionality)
@@ -24,14 +25,14 @@ To get a copy of the project up and running on your local machine for developmen
 
 ### Prerequisites
 
-Make sure you have Python installed (3.7+ recommended).
+Make sure you have Python installed (3.10+ recommended).
 
 ### Installation
 
 1. Clone the repository:
    ```bash
    git clone <repository_url>
-   cd bruh-just-convert # Or whatever your repo name is
+   cd your-local-repo-folder
    ```
 
 2. Install the required dependencies. It's recommended to use a virtual environment:
@@ -40,7 +41,7 @@ Make sure you have Python installed (3.7+ recommended).
    .\.venv\Scripts\activate # On Windows
    # source .venv/bin/activate # On macOS/Linux
    
-   pip install -r requirements.txt # Note: Will create requirements.txt later
+   pip install -r requirements.txt
    # OR manually install:
    pip install pillow pillow-heif tkinterdnd2 cx_Freeze
    ```
@@ -55,7 +56,7 @@ build_windows_app.bat
 
 This script automates the build process:
 1. Installs/upgrades required dependencies using pip.
-2. Creates the application icon (`app_icon.ico`).
+2. Creates the application icon assets (`app_icon.png` and `app_icon.ico`).
 3. Builds the standalone executable using `cx_Freeze`.
 4. Creates a desktop shortcut pointing to the executable.
 
@@ -108,4 +109,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-If you have any questions or need assistance, you can reach out via [GitHub Issues](<repository_url>/issues).
+If you have any questions or need assistance, please open an issue in this repository.
