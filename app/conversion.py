@@ -1,10 +1,14 @@
 import os
 from typing import Iterable, Callable, Tuple
 from PIL import Image, UnidentifiedImageError
-import pillow_heif
+try:
+    import pillow_heif
+except ImportError:  # pragma: no cover - exercised only when dependency is absent
+    pillow_heif = None
 
-# Register HEIF/HEIC opener
-pillow_heif.register_heif_opener()
+# Register HEIF/HEIC opener when support is installed
+if pillow_heif is not None:
+    pillow_heif.register_heif_opener()
 
 # Supported output formats (common ones)
 SUPPORTED_OUTPUT_FORMATS = [
@@ -37,6 +41,19 @@ def get_compatible_formats(image_obj: Image.Image) -> list:
     return list(dict.fromkeys(compatible_formats))
 
 
+def get_available_output_path(out_folder: str, base_name: str, output_fmt: str) -> str:
+    """Return a non-conflicting output path for the requested format."""
+    extension = output_fmt.lower()
+    candidate = os.path.join(out_folder, f"{base_name}.{extension}")
+    suffix = 1
+
+    while os.path.exists(candidate):
+        candidate = os.path.join(out_folder, f"{base_name} ({suffix}).{extension}")
+        suffix += 1
+
+    return candidate
+
+
 def convert_images(
     files: Iterable[str],
     output_fmt: str,
@@ -47,8 +64,8 @@ def convert_images(
 
     success_count = 0
     error_count = 0
-    total_files = len(list(files)) if not isinstance(files, list) else len(files)
     files_list = list(files)
+    total_files = len(files_list)
 
     if not os.path.isdir(out_folder):
         try:
@@ -61,10 +78,15 @@ def convert_images(
     for i, file_path in enumerate(files_list):
         filename = os.path.basename(file_path)
         base_name = os.path.splitext(filename)[0]
-        output_filename = f"{base_name}.{output_fmt.lower()}"
-        output_path = os.path.join(out_folder, output_filename)
+        output_path = get_available_output_path(out_folder, base_name, output_fmt)
+        output_filename = os.path.basename(output_path)
         if status_cb:
-            status_cb(f"Converting ({i+1}/{total_files}): {filename}")
+            if output_filename == f"{base_name}.{output_fmt.lower()}":
+                status_cb(f"Converting ({i+1}/{total_files}): {filename}")
+            else:
+                status_cb(
+                    f"Converting ({i+1}/{total_files}): {filename} -> {output_filename}"
+                )
 
         if not os.path.exists(file_path):
             error_count += 1
@@ -74,6 +96,11 @@ def convert_images(
 
         try:
             is_heic = file_path.lower().endswith((".heic", ".heif"))
+            if is_heic and pillow_heif is None:
+                if status_cb:
+                    status_cb(f"Cannot decode HEIC: {filename} (install pillow-heif)")
+                error_count += 1
+                continue
             with Image.open(file_path) as img:
                 try:
                     img.load()

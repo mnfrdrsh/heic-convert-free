@@ -10,13 +10,27 @@ from PIL import Image, UnidentifiedImageError # Pillow for image processing
 import os
 import threading # To keep UI responsive during conversion
 import sys # Needed for theme check
-import pillow_heif # <--- Import pillow-heif to register HEIC support
+try:
+    import pillow_heif  # Import pillow-heif to register HEIC support
+except ImportError:  # pragma: no cover - depends on local install state
+    pillow_heif = None
 
-# Register HEIC/HEIF formats explicitly
-pillow_heif.register_heif_opener()
+# Register HEIC/HEIF formats explicitly when support is installed
+if pillow_heif is not None:
+    pillow_heif.register_heif_opener()
 
 from .conversion import SUPPORTED_OUTPUT_FORMATS, convert_images, get_compatible_formats
 from .thumbnails import update_thumbnails
+
+
+def get_resource_path(filename):
+    """Resolve bundled resources in source and frozen builds."""
+    if getattr(sys, "frozen", False):
+        return os.path.join(os.path.dirname(sys.executable), filename)
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(project_root, filename)
+
 
 class ImageConverterApp(TkinterDnD.Tk): # Inherit from TkinterDnD.Tk for DND
 
@@ -29,9 +43,11 @@ class ImageConverterApp(TkinterDnD.Tk): # Inherit from TkinterDnD.Tk for DND
 
         # Add app icon for Windows
         if sys.platform == "win32":
+            icon_path = get_resource_path("app_icon.ico")
             try:
-                self.iconbitmap(default="app_icon.ico")
-            except:
+                if os.path.exists(icon_path):
+                    self.iconbitmap(default=icon_path)
+            except tk.TclError:
                 pass  # Icon not found, continue without it
         
         # --- Data Storage ---

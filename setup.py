@@ -2,11 +2,14 @@ import sys
 import os
 from cx_Freeze import setup, Executable
 
+ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
+APP_ICON = os.path.join(ROOT_DIR, "app_icon.ico")
+
 # Dependencies - Add more specific package includes for tkinterdnd2
 build_exe_options = {
     "packages": ["tkinter", "PIL", "pillow_heif", "tkinterdnd2", "app"],
     "includes": ["tkinter", "tkinter.ttk", "PIL", "pillow_heif", "tkinterdnd2"],
-    "include_files": ["app_icon.ico"],  # Include the icon file
+    "include_files": [(APP_ICON, "app_icon.ico")] if os.path.exists(APP_ICON) else [],
     "excludes": []
 }
 
@@ -64,10 +67,10 @@ setup(
     },
     executables=[
         Executable(
-            "image_converter.py",
+            os.path.join(ROOT_DIR, "image_converter.py"),
             base=base,
             target_name="SimpleImageConverter.exe",
-            icon="app_icon.ico"  # Will use this icon if it exists
+            icon=APP_ICON if os.path.exists(APP_ICON) else None
         )
     ]
 ) 
